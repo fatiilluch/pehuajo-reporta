@@ -1,0 +1,58 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></div>
+<a class="public-home-link" href="{% url 'reports:home' %}">Inicio de Pehuajó Reporta</a>
+{% if user.is_staff %}
+<a class="public-home-link" href="{% url 'reports:management_map' %}">Mapa de gestión</a>
+{% endif %}
+{% if user.is_anonymous %}
+  {% include "admin/color_theme_toggle.html" %}
+{% endif %}
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <style>
+    .public-home-link {
+      display: inline-block;
+      margin: 0.4rem 0;
+      color: var(--header-link-color);
+      font-size: 0.85rem;
+    }
+  </style>
+{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <script>
+    (() => {
+      const appKey = "pehuajo-reporta-theme";
+      const adminKey = "theme";
+      const root = document.documentElement;
+      const savedTheme = localStorage.getItem(appKey);
+      const theme = savedTheme === "dark" || savedTheme === "light" ? savedTheme : "light";
+      root.dataset.theme = theme;
+      localStorage.setItem(appKey, theme);
+      localStorage.setItem(adminKey, theme);
+
+      const syncAppTheme = () => {
+        const adminTheme = root.dataset.theme;
+        const effectiveTheme = adminTheme === "auto"
+          ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+          : adminTheme;
+        if (effectiveTheme === "dark" || effectiveTheme === "light") {
+          localStorage.setItem(appKey, effectiveTheme);
+        }
+      };
+      new MutationObserver(syncAppTheme).observe(root, {
+        attributes: true,
+        attributeFilter: ["data-theme"]
+      });
+    })();
+  </script>
+{% endblock %}

@@ -1,0 +1,280 @@
+{% extends "reports/base.html" %}
+
+{% block title %}Mapa de reportes | Pehuajó Reporta{% endblock %}
+{% block page_heading %}Reportes en Pehuajó{% endblock %}
+
+{% block page_styles %}
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Avenir Next", Avenir, system-ui, sans-serif;
+      color: var(--text);
+      background: var(--page);
+      --green: #176b45;
+      --muted: #62736a;
+      --border: #dce6dd;
+      --page: #f2f6f1;
+      --surface: #ffffff;
+      --surface-soft: #fbfdfb;
+      --text: #17362b;
+      --empty-bg: #f3faf4;
+      --empty-text: #365b43;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --green: #64c18b;
+      --muted: #b0beb5;
+      --border: #35473d;
+      --page: #111914;
+      --surface: #1b2620;
+      --surface-soft: #202d25;
+      --text: #edf5ef;
+      --empty-bg: #20352a;
+      --empty-text: #c9e6d2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 1.5rem 1.25rem 3rem;
+      background:
+        radial-gradient(ellipse at 85% 0%, color-mix(in srgb, var(--green) 12%, transparent) 0, transparent 38rem),
+        var(--page);
+      color: var(--text);
+    }
+    main {
+      max-width: 74rem;
+      margin: 0 auto;
+      padding: clamp(1.1rem, 4vw, 2.5rem);
+      border: 1px solid var(--surface);
+      border-radius: 1.5rem;
+      background: var(--surface);
+      box-shadow: 0 1.25rem 4rem #173b2612, 0 2px 8px #173b2608;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 2.5rem;
+    }
+    .topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      color: var(--text);
+      font-size: 0.98rem;
+      font-weight: 750;
+      text-decoration: none;
+    }
+    .brand-mark {
+      display: grid;
+      width: 2.2rem;
+      height: 2.2rem;
+      place-items: center;
+      border-radius: 0.75rem;
+      background: var(--green);
+      color: white;
+      font-size: 0.75rem;
+      letter-spacing: -0.04em;
+    }
+    .nav-link { color: var(--green); font-size: 0.92rem; font-weight: 650; text-decoration: none; }
+    .nav-link:hover { color: #105538; }
+    .theme-toggle {
+      display: inline-flex;
+      min-height: 2.5rem;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 650;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .theme-toggle:hover { background: var(--surface-soft); }
+    .site-footer {
+      margin: 1.5rem auto 0;
+      color: var(--muted);
+      font-size: 0.84rem;
+      text-align: center;
+    }
+    .eyebrow {
+      margin: 0 0 0.6rem;
+      color: var(--green);
+      font-size: 0.76rem;
+      font-weight: 750;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(2rem, 6vw, 3rem);
+      letter-spacing: -0.055em;
+      line-height: 1.05;
+    }
+    .intro { max-width: 42rem; margin: 1rem 0 1.5rem; color: var(--muted); font-size: 1.05rem; line-height: 1.6; }
+    .map-card { padding: clamp(0.65rem, 2vw, 1rem); border: 1px solid var(--border); border-radius: 1rem; background: var(--surface-soft); }
+    .map { height: min(70vh, 48rem); min-height: 25rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--surface-soft); }
+    .map-legend { display: flex; flex-wrap: wrap; gap: 0.65rem 1rem; margin: 0.1rem 0 0.8rem; color: var(--muted); font-size: 0.84rem; }
+    .legend-item { display: inline-flex; align-items: center; gap: 0.4rem; }
+    .legend-dot { width: 0.65rem; height: 0.65rem; border: 2px solid white; border-radius: 50%; background: #318358; box-shadow: 0 0 0 1px #318358; }
+    .legend-dot.in-progress { background: #d18a28; box-shadow: 0 0 0 1px #d18a28; }
+    .legend-dot.resolved { background: #708078; box-shadow: 0 0 0 1px #708078; }
+    .empty-state { margin: 0 0 0.8rem; padding: 0.9rem 1rem; border-radius: 0.65rem; background: var(--empty-bg); color: var(--empty-text); font-size: 0.9rem; }
+    .leaflet-popup-content-wrapper { border-radius: 0.75rem; }
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--surface); color: var(--text); }
+    .leaflet-control-zoom a { background: var(--surface); color: var(--text); }
+    .leaflet-control-attribution { background: color-mix(in srgb, var(--surface) 85%, transparent); }
+    .leaflet-tooltip.report-address-tooltip {
+      border: 1px solid var(--border);
+      border-radius: 0.55rem;
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 0.4rem 1rem #173b2620;
+      font: inherit;
+      font-size: 0.84rem;
+    }
+    .leaflet-tooltip.report-address-tooltip::before { border-top-color: var(--surface); }
+    .popup-category { display: block; margin-bottom: 0.15rem; color: var(--text); }
+    .popup-status { color: var(--muted); font-size: 0.88rem; }
+    @media (max-width: 600px) {
+      body { padding: 0.75rem 0.65rem 1.5rem; }
+      main { padding: 1.1rem; border-radius: 1.1rem; }
+      .topbar { margin-bottom: 2rem; }
+      .brand { font-size: 0.88rem; }
+      .nav-link { font-size: 0.84rem; }
+      .topbar-actions { gap: 0.5rem; }
+      .theme-toggle { width: 2.5rem; min-width: 2.5rem; padding: 0; font-size: 0; }
+      .theme-toggle .theme-icon { font-size: 1rem; }
+      .intro { font-size: 0.98rem; }
+      .map { height: 64vh; min-height: 22rem; }
+      .map-legend { gap: 0.55rem 0.8rem; font-size: 0.78rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+{% endblock %}
+
+{% block content %}
+    <p class="eyebrow">Transparencia comunitaria</p>
+    <h1>Reportes en Pehuajó</h1>
+    <p class="intro">El mapa muestra únicamente la ubicación, categoría y estado de los reportes aprobados por el equipo.</p>
+    <section class="map-card" aria-label="Mapa de reportes aprobados">
+      <div class="map-legend" aria-label="Referencias de estado">
+        <span class="legend-item"><span class="legend-dot"></span>Recibido</span>
+        <span class="legend-item"><span class="legend-dot in-progress"></span>En curso</span>
+        <span class="legend-item"><span class="legend-dot resolved"></span>Resuelto</span>
+      </div>
+      {% if not reports %}
+        <p class="empty-state">Todavía no hay reportes aprobados para mostrar. Cuando el equipo apruebe uno, va a aparecer acá.</p>
+      {% endif %}
+      <div id="reports-map" class="map" aria-label="Mapa público de reportes"></div>
+    </section>
+    {{ reports|json_script:"approved-reports" }}
+{% endblock %}
+
+{% block page_scripts %}
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const map = L.map("reports-map").setView([-35.836, -61.87], 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    const categoryLabels = {
+      pothole: "Bache",
+      lighting: "Alumbrado",
+      waste: "Residuos",
+      sidewalk: "Vereda",
+      other: "Otro"
+    };
+    const statusLabels = {
+      received: "Recibido",
+      in_progress: "En curso",
+      resolved: "Resuelto"
+    };
+    const reverseAddressUrl = "{% url 'reports:reverse_address' %}";
+    const reports = JSON.parse(document.getElementById("approved-reports").textContent);
+
+    reports.forEach((report) => {
+      const popup = document.createElement("div");
+      const category = document.createElement("strong");
+      category.className = "popup-category";
+      category.textContent = categoryLabels[report.category] || "Reporte";
+      const status = document.createElement("div");
+      status.className = "popup-status";
+      status.textContent = statusLabels[report.status] || "";
+      const description = document.createElement("p");
+      description.className = "popup-status";
+      description.textContent = report.description;
+      popup.append(category, status, description);
+      const color = {
+        received: "#318358",
+        in_progress: "#d18a28",
+        resolved: "#708078"
+      }[report.status] || "#318358";
+      const marker = L.circleMarker([report.latitude, report.longitude], {
+        radius: 8,
+        color: "#ffffff",
+        weight: 3,
+        fillColor: color,
+        fillOpacity: 1
+      }).addTo(map);
+      const address = document.createElement("span");
+      address.textContent = report.location_address || "Buscando dirección...";
+      marker.bindPopup(popup);
+      marker.bindTooltip(address, {
+        className: "report-address-tooltip",
+        direction: "top",
+        offset: [0, -8]
+      });
+      if (!report.location_address) {
+        let addressLookupInProgress = false;
+        marker.on("tooltipopen", async () => {
+          if (addressLookupInProgress || address.dataset.loaded === "true") {
+            return;
+          }
+          addressLookupInProgress = true;
+          try {
+            const url = new URL(reverseAddressUrl, window.location.origin);
+            url.searchParams.set("lat", report.latitude);
+            url.searchParams.set("lon", report.longitude);
+            let response;
+            let data;
+            for (let attempt = 0; attempt < 3; attempt += 1) {
+              response = await fetch(url);
+              data = await response.json();
+              if (response.status !== 429 || attempt === 2) {
+                break;
+              }
+              const retryAfter = Number(response.headers.get("Retry-After")) || 1;
+              await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+            }
+            if (!response.ok) {
+              throw new Error(data.error || "No pudimos encontrar la dirección.");
+            }
+            address.textContent = data.address;
+            address.dataset.loaded = "true";
+          } catch (error) {
+            address.textContent = "No se pudo cargar la dirección. Probá de nuevo.";
+            addressLookupInProgress = false;
+          }
+        });
+      }
+    });
+  </script>
+{% endblock %}

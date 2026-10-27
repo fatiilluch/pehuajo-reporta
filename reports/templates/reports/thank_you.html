@@ -1,0 +1,62 @@
+{% extends "reports/base.html" %}
+
+{% block title %}Reporte recibido | Pehuajó Reporta{% endblock %}
+{% block page_heading %}Reporte recibido{% endblock %}
+
+{% block page_styles %}
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Avenir Next", Avenir, system-ui, sans-serif;
+      color: var(--text);
+      background: var(--page);
+      --page: #f2f6f1;
+      --surface: #ffffff;
+      --text: #17362b;
+      --link: #176b45;
+      --muted: #62736a;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #111914;
+      --surface: #1b2620;
+      --text: #edf5ef;
+      --link: #64c18b;
+      --muted: #b0beb5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 2rem 1rem;
+      background:
+        radial-gradient(ellipse at 85% 0%, color-mix(in srgb, var(--link) 12%, transparent) 0, transparent 38rem),
+        var(--page);
+      color: var(--text);
+    }
+    main {
+      max-width: 36rem;
+      margin: 3rem auto;
+      padding: clamp(1.5rem, 6vw, 2.5rem);
+      border: 1px solid var(--surface);
+      border-radius: 1rem;
+      background: var(--surface);
+      box-shadow: 0 1.25rem 4rem #173b2612, 0 2px 8px #173b2608;
+    }
+    p { color: var(--muted); line-height: 1.6; }
+    a { color: var(--link); }
+    a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+  </style>
+{% endblock %}
+
+{% block content %}
+    <h1>¡Gracias por reportarlo!</h1>
+    {% if email_sent %}
+      <p>Te enviamos un email para confirmar que la dirección funciona. Revisá tu bandeja de entrada y el correo no deseado.</p>
+      <p>Cuando confirmes, el equipo podrá revisar el reporte antes de publicarlo.</p>
+    {% else %}
+      <p>Recibimos tu reporte. El equipo lo va a revisar antes de publicarlo en el mapa.</p>
+    {% endif %}
+    <p><a href="{% url 'reports:create' %}">Cargar otro reporte</a></p>
+    <p><a href="{% url 'reports:map' %}">Ver el mapa de reportes aprobados</a></p>
+{% endblock %}

@@ -1,0 +1,145 @@
+{% extends "reports/base.html" %}
+
+{% block title %}Inicio | Pehuajó Reporta{% endblock %}
+{% block page_heading %}Inicio{% endblock %}
+
+{% block page_styles %}
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Avenir Next", Avenir, system-ui, sans-serif;
+      color: var(--text);
+      background: var(--page);
+      --green: #176b45;
+      --green-dark: #105538;
+      --muted: #62736a;
+      --border: #dce6dd;
+      --page: #f2f6f1;
+      --surface: #ffffff;
+      --surface-soft: #fbfdfb;
+      --text: #17362b;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --green: #64c18b;
+      --green-dark: #4aa875;
+      --muted: #b0beb5;
+      --border: #35473d;
+      --page: #111914;
+      --surface: #1b2620;
+      --surface-soft: #202d25;
+      --text: #edf5ef;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 1.5rem 1.25rem 1rem;
+      background:
+        radial-gradient(ellipse at 85% 0%, color-mix(in srgb, var(--green) 12%, transparent) 0, transparent 38rem),
+        var(--page);
+      color: var(--text);
+    }
+    main {
+      max-width: 64rem;
+      margin: 0 auto;
+      padding: clamp(1.25rem, 5vw, 3rem);
+      border: 1px solid var(--surface);
+      border-radius: 1.5rem;
+      background: var(--surface);
+      box-shadow: 0 1.25rem 4rem #173b2612, 0 2px 8px #173b2608;
+    }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .brand { display: inline-flex; align-items: center; gap: 0.65rem; color: var(--text); font-weight: 750; text-decoration: none; }
+    .brand-mark {
+      display: grid;
+      width: 2.2rem;
+      height: 2.2rem;
+      place-items: center;
+      border-radius: 0.75rem;
+      background: var(--green);
+      color: white;
+      font-size: 0.75rem;
+    }
+    .theme-toggle {
+      display: inline-flex;
+      min-height: 2.5rem;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    .hero { max-width: 48rem; margin: clamp(3rem, 9vw, 6rem) auto 3rem; text-align: center; }
+    .eyebrow {
+      margin: 0 0 0.7rem;
+      color: var(--green);
+      font-size: 0.76rem;
+      font-weight: 750;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: clamp(2.4rem, 8vw, 4.5rem); letter-spacing: -0.06em; line-height: 1; }
+    .intro { max-width: 39rem; margin: 1.25rem auto 0; color: var(--muted); font-size: clamp(1rem, 2.5vw, 1.15rem); line-height: 1.65; }
+    .options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .option {
+      display: flex;
+      min-height: 12rem;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: clamp(1.25rem, 4vw, 2rem);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      background: var(--surface-soft);
+      color: var(--text);
+      text-decoration: none;
+      transition: border-color 140ms ease, transform 140ms ease;
+    }
+    .option:hover { transform: translateY(-2px); border-color: var(--green); }
+    .option-icon { margin-bottom: 1rem; font-size: 1.6rem; }
+    .option h2 { margin: 0; font-size: 1.25rem; }
+    .option p { margin: 0.55rem 0 1.25rem; color: var(--muted); line-height: 1.55; }
+    .option-action { margin-top: auto; color: var(--green); font-weight: 750; }
+    .site-footer { margin: 1.5rem auto 0; color: var(--muted); font-size: 0.84rem; text-align: center; }
+    @media (max-width: 600px) {
+      body { padding: 0.75rem 0.65rem 1rem; }
+      main { padding: 1.1rem; border-radius: 1.1rem; }
+      .hero { margin: 3.5rem auto 2.5rem; }
+      .options { grid-template-columns: 1fr; }
+      .option { min-height: 10rem; }
+      .theme-toggle { width: 2.5rem; min-width: 2.5rem; justify-content: center; padding: 0; font-size: 0; }
+      .theme-icon { font-size: 1rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+    <section class="hero">
+      <p class="eyebrow">Participación ciudadana</p>
+      <h1>Hagamos un Pehuajó mejor</h1>
+      <p class="intro">Reportá problemas en los espacios públicos o consultá en el mapa los que ya fueron aprobados.</p>
+    </section>
+    <nav class="options" aria-label="Opciones principales">
+      <a class="option" href="{% url 'reports:create' %}">
+        <span class="option-icon" aria-hidden="true">📍</span>
+        <h2>Enviar un reporte</h2>
+        <p>Contanos qué sucede y marcá su ubicación en el mapa.</p>
+        <span class="option-action">Hacer un reporte →</span>
+      </a>
+      <a class="option" href="{% url 'reports:map' %}">
+        <span class="option-icon" aria-hidden="true">🗺️</span>
+        <h2>Ver reportes existentes</h2>
+        <p>Explorá en el mapa los reportes aprobados por el equipo.</p>
+        <span class="option-action">Abrir el mapa →</span>
+      </a>
+    </nav>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "reports/base.html" %}
+
+{% block title %}Confirmar email | Pehuajó Reporta{% endblock %}
+{% block page_heading %}Confirmación de email{% endblock %}
+
+{% block page_styles %}
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Avenir Next", Avenir, system-ui, sans-serif;
+      color: var(--text);
+      background: var(--page);
+      --page: #f2f6f1;
+      --surface: #ffffff;
+      --border: #dce6dd;
+      --text: #17362b;
+      --link: #176b45;
+      --muted: #62736a;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --page: #111914;
+      --surface: #1b2620;
+      --border: #35473d;
+      --text: #edf5ef;
+      --link: #64c18b;
+      --muted: #b0beb5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      padding: 1.5rem 1rem;
+      background:
+        radial-gradient(ellipse at 85% 0%, color-mix(in srgb, var(--link) 12%, transparent) 0, transparent 38rem),
+        var(--page);
+      color: var(--text);
+    }
+    main {
+      max-width: 36rem;
+      margin: 2rem auto;
+      padding: clamp(1.25rem, 5vw, 2rem);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      background: var(--surface);
+      box-shadow: 0 1.25rem 4rem #173b2612, 0 2px 8px #173b2608;
+    }
+    p { color: var(--muted); line-height: 1.6; }
+    a { color: var(--link); }
+    form { margin: 1.25rem 0; }
+    form button {
+      min-height: 2.8rem;
+      padding: 0.7rem 1.1rem;
+      border: 0;
+      border-radius: 0.6rem;
+      background: var(--link);
+      color: #fff;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    :focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+  </style>
+{% endblock %}
+
+{% block content %}
+    {% if error %}
+      <h1>No se pudo confirmar el email</h1>
+      <p>{{ error }}</p>
+    {% elif confirmed %}
+      <h1>¡Email confirmado!</h1>
+      <p>Gracias. El equipo ya puede revisar tu reporte antes de publicarlo.</p>
+    {% else %}
+      <h1>Confirmá tu email</h1>
+      <p>Al confirmar, el equipo podrá revisar tu reporte. El email no se muestra públicamente.</p>
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit">Confirmar email</button>
+      </form>
+    {% endif %}
+    <p><a href="{% url 'reports:home' %}">Volver a Pehuajó Reporta</a></p>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "reports/base.html" %}
+
+{% block title %}Ingresar | Pehuajó Reporta{% endblock %}
+{% block page_heading %}Ingresar{% endblock %}
+{% block account_actions %}{% endblock %}
+
+{% block page_styles %}
+  <style>
+    .login-card {
+      max-width: 32rem;
+      margin: 0 auto;
+      padding: clamp(1.25rem, 5vw, 2rem);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      background: var(--surface-soft);
+    }
+    .login-intro { color: var(--muted); line-height: 1.55; }
+    .login-form { display: grid; gap: 1rem; margin-top: 1.5rem; }
+    .login-form p { margin: 0; }
+    .login-form label { display: block; margin-bottom: 0.4rem; font-weight: 700; }
+    .login-form input {
+      width: 100%;
+      min-height: 2.8rem;
+      padding: 0.7rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 0.6rem;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+    }
+    .login-form button {
+      min-height: 2.9rem;
+      border: 0;
+      border-radius: 0.6rem;
+      background: var(--green);
+      color: white;
+      font: inherit;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    .login-errors { color: #a12626; }
+    .login-help { margin-bottom: 0; color: var(--muted); font-size: 0.9rem; }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <section class="login-card">
+    <h1>Ingresá a tu cuenta</h1>
+    <p class="login-intro">Las cuentas las crea el equipo municipal. Si todavía no tenés una, contactá a la administración.</p>
+    {% if form.errors %}
+      <p class="login-errors" role="alert">El usuario o la contraseña no son correctos.</p>
+    {% endif %}
+    <form class="login-form" method="post">
+      {% csrf_token %}
+      {{ form.username.label_tag }}
+      {{ form.username }}
+      {{ form.password.label_tag }}
+      {{ form.password }}
+      <button type="submit">Ingresar</button>
+    </form>
+    <p class="login-help">El personal del equipo ingresa al panel de administración. Las cuentas de usuario acceden a las opciones públicas de reportes y mapa.</p>
+  </section>
+{% endblock %}

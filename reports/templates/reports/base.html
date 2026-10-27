@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Pehuajó Reporta{% endblock %}</title>
+  <script>
+    (() => {
+      const key = "pehuajo-reporta-theme";
+      const savedTheme = localStorage.getItem(key);
+      const theme = savedTheme === "dark" || savedTheme === "light" ? savedTheme : "light";
+      document.documentElement.dataset.theme = theme;
+      if (savedTheme !== theme) {
+        localStorage.setItem(key, theme);
+      }
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: "Avenir Next", Avenir, system-ui, sans-serif;
+      color: var(--text);
+      background: var(--page);
+      --green: #176b45;
+      --green-dark: #105538;
+      --muted: #62736a;
+      --border: #dce6dd;
+      --page: #f2f6f1;
+      --surface: #ffffff;
+      --surface-soft: #fbfdfb;
+      --text: #17362b;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --green: #64c18b;
+      --green-dark: #4aa875;
+      --muted: #b0beb5;
+      --border: #35473d;
+      --page: #111914;
+      --surface: #1b2620;
+      --surface-soft: #202d25;
+      --text: #edf5ef;
+    }
+    * { box-sizing: border-box; }
+    .site-header {
+      display: flex;
+      min-height: 2.75rem;
+      align-items: center;
+      gap: 0.8rem;
+      margin-bottom: 2rem;
+    }
+    .home-button {
+      display: inline-flex;
+      min-height: 2.5rem;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.45rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--green);
+      font: inherit;
+      font-size: 0.88rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .page-title {
+      min-width: 0;
+      flex: 1;
+      color: var(--text);
+      font-size: 1rem;
+      font-weight: 750;
+    }
+    .user-name { color: var(--muted); font-size: 0.84rem; }
+    .account-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 0.45rem; }
+    .account-link, .logout-button {
+      display: inline-flex;
+      min-height: 2.5rem;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      padding: 0.45rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--green);
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .logout-form { display: inline-flex; margin: 0; }
+    .theme-toggle {
+      display: inline-flex;
+      min-height: 2.5rem;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 650;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .site-footer {
+      margin: 1.5rem auto 0;
+      color: var(--muted);
+      font-size: 0.84rem;
+      text-align: center;
+    }
+    @media (max-width: 600px) {
+      .site-header { gap: 0.5rem; margin-bottom: 1.5rem; }
+      .home-button { width: 2.5rem; justify-content: center; padding: 0; font-size: 0; }
+      .home-icon { font-size: 1rem; }
+      .page-title { font-size: 0.9rem; }
+      .user-name { display: none; }
+      .account-actions { gap: 0.3rem; }
+      .account-actions .account-link { width: 2.5rem; padding: 0; font-size: 0; }
+      .account-actions .account-link .account-icon { font-size: 1rem; }
+      .logout-button {
+        width: auto;
+        padding: 0 0.6rem;
+        font-size: 0.72rem;
+        white-space: nowrap;
+      }
+      .logout-button .account-icon { font-size: 1rem; }
+      .site-header > .account-link {
+        width: auto;
+        padding: 0 0.65rem;
+        font-size: 0.72rem;
+        white-space: nowrap;
+      }
+      .site-header > .account-link .account-icon { font-size: 1rem; }
+      .theme-toggle { width: 2.5rem; padding: 0; font-size: 0; }
+      .theme-icon { font-size: 1rem; }
+    }
+  </style>
+  {% block page_styles %}{% endblock %}
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <main>
+    <header class="site-header">
+      <a class="home-button" href="{% url 'reports:home' %}" aria-label="Volver al inicio">
+        <span class="home-icon" aria-hidden="true">⌂</span><span>Inicio</span>
+      </a>
+      <span class="page-title">{% block page_heading %}Pehuajó Reporta{% endblock %}</span>
+      {% block account_actions %}
+        {% if user.is_authenticated %}
+          <span class="user-name">{{ user.get_full_name|default:user.get_username }}</span>
+          <div class="account-actions">
+            {% if user.is_staff %}
+              <a class="account-link" href="{% url 'reports:management_map' %}" aria-label="Abrir mapa de gestión">
+                <span class="account-icon" aria-hidden="true">⌖</span><span class="account-label">Mapa</span>
+              </a>
+              <a class="account-link" href="{% url 'admin:index' %}" aria-label="Abrir panel de administración">
+                <span class="account-icon" aria-hidden="true">⚙</span><span class="account-label">Panel</span>
+              </a>
+            {% endif %}
+            <form class="logout-form" method="post" action="{% url 'reports:logout' %}">
+              {% csrf_token %}
+              <button class="logout-button" type="submit"
+                      aria-label="Cerrar sesión de {{ user.get_full_name|default:user.get_username }}"
+                      title="Sesión de {{ user.get_full_name|default:user.get_username }}">
+                <span class="account-icon" aria-hidden="true">↪</span><span class="account-label">Cerrar sesión</span>
+              </button>
+            </form>
+          </div>
+        {% else %}
+          <a class="account-link" href="{% url 'reports:login' %}"
+             aria-label="Iniciar sesión" title="No iniciaste sesión">
+            <span class="account-icon" aria-hidden="true">↪</span><span class="account-label">Ingresar</span>
+          </a>
+        {% endif %}
+      {% endblock %}
+      <button class="theme-toggle" type="button" aria-label="Cambiar a modo oscuro" aria-pressed="false">
+        <span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Modo oscuro</span>
+      </button>
+    </header>
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">2026 © Pehuajó Reporta</footer>
+  <script>
+    (() => {
+      const root = document.documentElement;
+      const toggle = document.querySelector(".theme-toggle");
+      function updateThemeControl() {
+        const isDark = root.dataset.theme === "dark";
+        toggle.setAttribute("aria-pressed", String(isDark));
+        toggle.setAttribute("aria-label", isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro");
+        toggle.querySelector(".theme-icon").textContent = isDark ? "☀" : "☾";
+        toggle.querySelector(".theme-label").textContent = isDark ? "Modo claro" : "Modo oscuro";
+      }
+      updateThemeControl();
+      toggle.addEventListener("click", () => {
+        const isDark = root.dataset.theme !== "dark";
+        root.dataset.theme = isDark ? "dark" : "light";
+        localStorage.setItem("pehuajo-reporta-theme", isDark ? "dark" : "light");
+        updateThemeControl();
+      });
+    })();
+  </script>
+  {% block page_scripts %}{% endblock %}
+</body>
+</html>
