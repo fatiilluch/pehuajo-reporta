@@ -282,7 +282,11 @@
 {% block content %}
     <p class="eyebrow">Participación ciudadana</p>
     <h1>Reportá un problema</h1>
-    <p class="intro">Ayudanos a mejorar los espacios públicos de Pehuajó. No necesitás crear una cuenta.</p>
+    {% if user.is_authenticated %}
+      <p class="intro">Ayudanos a mejorar los espacios públicos de Pehuajó. El reporte se asociará al email confirmado de tu cuenta.</p>
+    {% else %}
+      <p class="intro">Ayudanos a mejorar los espacios públicos de Pehuajó. No necesitás crear una cuenta.</p>
+    {% endif %}
     <p class="privacy">Tu reporte y la foto serán revisados por el equipo antes de publicarse. Tus datos de contacto y la descripción no se muestran en el mapa público.</p>
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
@@ -332,7 +336,7 @@
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
     const map = L.map("location-map").setView([-35.836, -61.87], 14);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);

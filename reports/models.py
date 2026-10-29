@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
@@ -25,6 +26,14 @@ class Report(models.Model):
 
     contact_name = models.CharField("nombre de contacto", max_length=120, blank=True)
     contact_email = models.EmailField("email de contacto", blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name="enviado por",
+        related_name="submitted_reports",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
     category = models.CharField("categoría", max_length=20, choices=Category.choices)
     description = models.TextField("descripción")
     latitude = models.DecimalField(
@@ -81,3 +90,12 @@ class Report(models.Model):
 
     def __str__(self):
         return f"{self.get_category_display()} - {self.get_status_display()}"
+
+
+class PendingAccountVerification(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="pending_email_verification",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)

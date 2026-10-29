@@ -64,12 +64,44 @@
 {% endblock %}
 
 {% block content %}
-    {% if error %}
+    {% if sent %}
+      <h1>Revisá tu email</h1>
+      {% if account_email %}
+        <p>Enviamos el enlace de activación a <strong>{{ account_email }}</strong>.</p>
+      {% else %}
+        <p>Si existe una cuenta pendiente con esa dirección, la solicitud fue procesada. Revisá también el correo no deseado; si no llega, contactá al equipo.</p>
+      {% endif %}
+      {% if not account_email %}<p>Revisá también la carpeta de correo no deseado.</p>{% endif %}
+      {% if not account_email %}<p><a href="{% url 'reports:login' %}">Ir a ingresar</a></p>{% endif %}
+    {% elif error %}
       <h1>No se pudo confirmar el email</h1>
       <p>{{ error }}</p>
+      {% if resend_url %}<p><a href="{{ resend_url }}">Pedir otro enlace de confirmación</a></p>{% endif %}
+    {% elif confirmed and account_confirmation %}
+      <h1>¡Cuenta activada!</h1>
+      <p>Ya podés iniciar sesión y enviar reportes con el email confirmado de tu cuenta.</p>
+      <p><a href="{% url 'reports:login' %}">Ingresar</a></p>
     {% elif confirmed %}
       <h1>¡Email confirmado!</h1>
       <p>Gracias. El equipo ya puede revisar tu reporte antes de publicarlo.</p>
+    {% elif account_confirmation %}
+      <h1>Confirmá tu cuenta</h1>
+      <p>Al confirmar tu email vas a activar tu cuenta de Pehuajó Reporta.</p>
+      {% if account_email %}<p>Enviamos el enlace a <strong>{{ account_email }}</strong>.</p>{% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <button type="submit">Confirmar email y activar cuenta</button>
+      </form>
+    {% elif resend_form %}
+      <h1>Reenviar confirmación</h1>
+      <p>Ingresá el email que usaste al registrarte y te enviaremos un nuevo enlace si hay una cuenta pendiente.</p>
+      <form method="post">
+        {% csrf_token %}
+        {{ resend_form.email.label_tag }}
+        {{ resend_form.email }}
+        {{ resend_form.email.errors }}
+        <button type="submit">Enviar enlace</button>
+      </form>
     {% else %}
       <h1>Confirmá tu email</h1>
       <p>Al confirmar, el equipo podrá revisar tu reporte. El email no se muestra públicamente.</p>

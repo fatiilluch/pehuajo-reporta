@@ -15,7 +15,7 @@
       background: var(--surface-soft);
     }
     .login-intro { color: var(--muted); line-height: 1.55; }
-    .login-form { display: grid; gap: 1rem; margin-top: 1.5rem; }
+    .login-form, .google-login-form { display: grid; gap: 1rem; margin-top: 1.5rem; }
     .login-form p { margin: 0; }
     .login-form label { display: block; margin-bottom: 0.4rem; font-weight: 700; }
     .login-form input {
@@ -38,6 +38,24 @@
       font-weight: 750;
       cursor: pointer;
     }
+    .google-login-form { margin-top: 0.9rem; }
+    .google-login-button {
+      display: flex;
+      min-height: 2.9rem;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 0.6rem;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .google-mark { color: #4285f4; font-size: 1.15rem; font-weight: 800; }
+    .login-divider { display: flex; align-items: center; gap: 0.75rem; margin: 1.2rem 0; color: var(--muted); font-size: 0.82rem; }
+    .login-divider::before, .login-divider::after { height: 1px; flex: 1; background: var(--border); content: ""; }
     .login-errors { color: #a12626; }
     .login-help { margin-bottom: 0; color: var(--muted); font-size: 0.9rem; }
   </style>
@@ -46,7 +64,18 @@
 {% block content %}
   <section class="login-card">
     <h1>Ingresá a tu cuenta</h1>
-    <p class="login-intro">Las cuentas las crea el equipo municipal. Si todavía no tenés una, contactá a la administración.</p>
+    <p class="login-intro">Ingresá con el usuario y la contraseña que elegiste al registrarte.</p>
+    {% if google_oauth_enabled %}
+      {% load socialaccount %}
+      <form class="google-login-form" method="post" action="{% provider_login_url 'google' %}">
+        {% csrf_token %}
+        <button class="google-login-button" type="submit">
+          <span class="google-mark" aria-hidden="true">G</span>
+          Continuar con Google
+        </button>
+      </form>
+      <div class="login-divider">o con tu usuario</div>
+    {% endif %}
     {% if form.errors %}
       <p class="login-errors" role="alert">El usuario o la contraseña no son correctos.</p>
     {% endif %}
@@ -58,6 +87,8 @@
       {{ form.password }}
       <button type="submit">Ingresar</button>
     </form>
+    <p class="login-help">¿Todavía no tenés cuenta? <a href="{% url 'reports:register' %}">Registrate</a>. Vas a poder ingresar cuando confirmes tu email.</p>
+    <p class="login-help">¿Te registraste pero no recibiste el enlace? <a href="{% url 'reports:resend_account_verification' %}">Reenviar confirmación</a>.</p>
     <p class="login-help">El personal del equipo ingresa al panel de administración. Las cuentas de usuario acceden a las opciones públicas de reportes y mapa.</p>
   </section>
 {% endblock %}

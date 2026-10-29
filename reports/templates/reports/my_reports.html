@@ -1,0 +1,193 @@
+{% extends "reports/base.html" %}
+
+{% block title %}Mis reportes | Pehuajó Reporta{% endblock %}
+{% block page_heading %}Mis reportes{% endblock %}
+
+{% block page_styles %}
+  <style>
+    h1 { margin: 0; font-size: clamp(2rem, 6vw, 3rem); letter-spacing: -0.055em; line-height: 1.05; }
+    .intro { max-width: 46rem; margin: 1rem 0 1.5rem; color: var(--muted); line-height: 1.6; }
+    .filters {
+      display: grid;
+      grid-template-columns: minmax(12rem, 2fr) repeat(3, minmax(9rem, 1fr)) auto;
+      align-items: end;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      background: var(--surface-soft);
+    }
+    .filter-field { display: grid; gap: 0.35rem; }
+    .filter-field label { color: var(--muted); font-size: 0.82rem; font-weight: 700; }
+    .filter-field input, .filter-field select {
+      width: 100%;
+      min-height: 2.6rem;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 0.55rem;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+    }
+    .filter-actions { display: flex; align-items: center; gap: 0.65rem; }
+    .filter-button {
+      min-height: 2.6rem;
+      padding: 0.5rem 0.85rem;
+      border: 0;
+      border-radius: 0.6rem;
+      background: var(--green);
+      color: white;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .clear-filters { color: var(--green); font-size: 0.85rem; font-weight: 700; }
+    .filter-error { grid-column: 1 / -1; margin: 0; color: #b42318; font-size: 0.9rem; }
+    .report-list { display: grid; gap: 1rem; }
+    .report-card {
+      padding: clamp(1rem, 3vw, 1.4rem);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      background: var(--surface-soft);
+    }
+    .report-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.4rem 1rem; }
+    .report-heading h2 { margin: 0; font-size: 1.15rem; }
+    .report-date { color: var(--muted); font-size: 0.85rem; }
+    .report-meta { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0.8rem 0; }
+    .report-badge {
+      display: inline-flex;
+      padding: 0.28rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--text);
+      font-size: 0.8rem;
+      font-weight: 650;
+    }
+    .report-progress {
+      margin: 0.8rem 0;
+      padding: 0.8rem 1rem;
+      border-left: 3px solid var(--green);
+      border-radius: 0.25rem 0.65rem 0.65rem 0.25rem;
+      background: var(--surface);
+      line-height: 1.55;
+    }
+    .report-address, .report-description { margin: 0.55rem 0 0; color: var(--muted); line-height: 1.55; }
+    .report-description { color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .report-links { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; margin-top: 0.85rem; }
+    .report-links a { color: var(--green); font-weight: 700; }
+    .report-photo {
+      display: block;
+      max-width: min(100%, 30rem);
+      max-height: 24rem;
+      margin-top: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 0.8rem;
+      object-fit: contain;
+    }
+    .updated-date { display: block; margin-top: 0.75rem; color: var(--muted); font-size: 0.8rem; }
+    .empty-state {
+      padding: 1.25rem;
+      border: 1px dashed var(--border);
+      border-radius: 1rem;
+      background: var(--surface-soft);
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .empty-state a { color: var(--green); font-weight: 700; }
+    @media (max-width: 850px) {
+      .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .filter-actions { grid-column: 1 / -1; }
+    }
+    @media (max-width: 480px) {
+      .filters { grid-template-columns: 1fr; }
+      .filter-actions { grid-column: auto; }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <h1>Mis reportes</h1>
+  <p class="intro">Acá podés consultar los reportes que enviaste desde tu cuenta, ver qué resolvió el equipo y seguir cada actualización. Solo vos podés acceder a esta lista.</p>
+
+  <form class="filters" method="get" action="{% url 'reports:my_reports' %}">
+    <div class="filter-field">
+      <label for="{{ filter_form.search.id_for_label }}">Buscar en dirección o descripción</label>
+      {{ filter_form.search }}
+    </div>
+    <div class="filter-field">
+      <label for="{{ filter_form.category.id_for_label }}">Categoría</label>
+      {{ filter_form.category }}
+    </div>
+    <div class="filter-field">
+      <label for="{{ filter_form.review_status.id_for_label }}">Revisión</label>
+      {{ filter_form.review_status }}
+    </div>
+    <div class="filter-field">
+      <label for="{{ filter_form.status.id_for_label }}">Estado</label>
+      {{ filter_form.status }}
+    </div>
+    <div class="filter-actions">
+      <button class="filter-button" type="submit">Filtrar</button>
+      {% if request.GET %}<a class="clear-filters" href="{% url 'reports:my_reports' %}">Limpiar</a>{% endif %}
+    </div>
+    {% if filter_form.errors %}
+      <p class="filter-error" role="alert">Revisá los filtros ingresados para ver tus reportes.</p>
+    {% endif %}
+  </form>
+
+  {% if reports %}
+    <section class="report-list" aria-label="Reportes enviados por vos">
+      {% for report in reports %}
+        <article class="report-card">
+          <div class="report-heading">
+            <h2>Reporte #{{ report.pk }} · {{ report.get_category_display }}</h2>
+            <time class="report-date" datetime="{{ report.created_at|date:'c' }}">Enviado {{ report.created_at|date:"d/m/Y H:i" }}</time>
+          </div>
+          <div class="report-meta" aria-label="Estados del reporte">
+            <span class="report-badge">Revisión: {{ report.get_review_status_display }}</span>
+            <span class="report-badge">Estado: {{ report.get_status_display }}</span>
+          </div>
+          <p class="report-progress">
+            {% if report.review_status == "pending_email" %}
+              Falta confirmar el email asociado al reporte. Cuando esté confirmado, el equipo podrá revisarlo.
+            {% elif report.review_status == "pending" %}
+              Recibimos tu reporte. El equipo está revisando la información antes de decidir si lo publica.
+            {% elif report.review_status == "approved" %}
+              El equipo aprobó el reporte para publicarlo. El estado operativo indica si está recibido, en curso o resuelto.
+            {% elif report.review_status == "rejected" %}
+              El equipo decidió no publicar este reporte. El estado de revisión te muestra esa decisión.
+            {% endif %}
+            {% if report.status == "in_progress" %}
+              El problema está en curso de resolución.
+            {% elif report.status == "resolved" %}
+              El problema figura como resuelto.
+            {% endif %}
+          </p>
+          {% if report.location_address %}
+            <p class="report-address"><strong>Ubicación:</strong> {{ report.location_address }}</p>
+          {% else %}
+            <p class="report-address"><strong>Coordenadas:</strong> {{ report.latitude }}, {{ report.longitude }}</p>
+          {% endif %}
+          <p class="report-description">{{ report.description }}</p>
+          <div class="report-links">
+            <a href="https://www.openstreetmap.org/?mlat={{ report.latitude }}&amp;mlon={{ report.longitude }}#map=17/{{ report.latitude }}/{{ report.longitude }}"
+               target="_blank" rel="noopener noreferrer">Ver ubicación en el mapa</a>
+          </div>
+          {% if report.photo %}
+            <img class="report-photo"
+                 src="{% url 'reports:my_report_photo' report.pk %}"
+                 alt="Foto adjunta al reporte #{{ report.pk }}">
+          {% endif %}
+          <time class="updated-date" datetime="{{ report.updated_at|date:'c' }}">Última actualización: {{ report.updated_at|date:"d/m/Y H:i" }}</time>
+        </article>
+      {% endfor %}
+    </section>
+  {% elif filter_form.errors %}
+    <p class="empty-state">No se aplicaron los filtros porque alguno de los valores no es válido.</p>
+  {% elif request.GET %}
+    <p class="empty-state">No encontramos reportes que coincidan con esos filtros. <a href="{% url 'reports:my_reports' %}">Ver todos mis reportes</a>.</p>
+  {% else %}
+    <p class="empty-state">Todavía no enviaste reportes desde tu cuenta. <a href="{% url 'reports:create' %}">Crear mi primer reporte</a>.</p>
+  {% endif %}
+{% endblock %}

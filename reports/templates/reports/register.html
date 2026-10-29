@@ -1,0 +1,98 @@
+{% extends "reports/base.html" %}
+
+{% block title %}Crear cuenta | Pehuajó Reporta{% endblock %}
+{% block page_heading %}Crear cuenta{% endblock %}
+{% block account_actions %}{% endblock %}
+
+{% block page_styles %}
+  <style>
+    .register-card {
+      max-width: 34rem;
+      margin: 0 auto;
+      padding: clamp(1.25rem, 5vw, 2rem);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      background: var(--surface-soft);
+    }
+    .register-intro, .register-help { color: var(--muted); line-height: 1.55; }
+    .register-form { display: grid; gap: 1rem; margin-top: 1.5rem; }
+    .register-form p { margin: 0; }
+    .register-form label { display: block; margin-bottom: 0.4rem; font-weight: 700; }
+    .register-form input {
+      width: 100%;
+      min-height: 2.8rem;
+      padding: 0.7rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 0.6rem;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+    }
+    .register-form button {
+      min-height: 2.9rem;
+      border: 0;
+      border-radius: 0.6rem;
+      background: var(--green);
+      color: white;
+      font: inherit;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    .google-register-form { margin: 1.25rem 0; }
+    .google-register-button {
+      display: flex;
+      width: 100%;
+      min-height: 2.9rem;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 0.6rem;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .google-mark { color: #4285f4; font-size: 1.15rem; font-weight: 800; }
+    .register-divider { display: flex; align-items: center; gap: 0.75rem; margin: 1.2rem 0; color: var(--muted); font-size: 0.82rem; }
+    .register-divider::before, .register-divider::after { height: 1px; flex: 1; background: var(--border); content: ""; }
+    .register-form ul { margin: 0.35rem 0 0; padding-left: 1.2rem; color: var(--muted); font-size: 0.85rem; }
+    .register-errors { color: #a12626; }
+    .register-help { margin-bottom: 0; font-size: 0.9rem; }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <section class="register-card">
+    <h1>Creá tu cuenta</h1>
+    <p class="register-intro">Confirmá tu email para activar la cuenta. Después vas a poder enviar reportes sin volver a verificarlo.</p>
+    {% if google_oauth_enabled %}
+      {% load socialaccount %}
+      <form class="google-register-form" method="post" action="{% provider_login_url 'google' %}">
+        {% csrf_token %}
+        <button class="google-register-button" type="submit">
+          <span class="google-mark" aria-hidden="true">G</span>
+          Registrarme con Google
+        </button>
+      </form>
+      <div class="register-divider">o con email</div>
+    {% endif %}
+    {% if form.non_field_errors %}
+      <div class="register-errors" role="alert">{{ form.non_field_errors }}</div>
+    {% endif %}
+    <form class="register-form" method="post">
+      {% csrf_token %}
+      {% for field in form %}
+        <div>
+          {{ field.label_tag }}
+          {{ field }}
+          {% if field.help_text %}<ul><li>{{ field.help_text|safe }}</li></ul>{% endif %}
+          {{ field.errors }}
+        </div>
+      {% endfor %}
+      <button type="submit">Crear cuenta</button>
+    </form>
+    <p class="register-help">¿Ya tenés cuenta? <a href="{% url 'reports:login' %}">Ingresá</a>.</p>
+  </section>
+{% endblock %}

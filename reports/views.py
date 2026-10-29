@@ -10,23 +10,91 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from PIL import Image
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core import signing
 from django.core.cache import cache
 from django.core.mail import send_mail
 from django.db.models import Q
-from django.http import HttpResponseBadRequest, JsonResponse
+from django.http import FileResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET
 
-from .forms import ReportForm
-from .models import Report
+from .forms import (
+    MyReportsFilterForm,
+    RegistrationForm,
+    ReportForm,
+    ResendAccountVerificationForm,
+)
+from .models import PendingAccountVerification, Report
 
 logger = logging.getLogger(__name__)
 EMAIL_CONFIRMATION_MAX_AGE = 60 * 60 * 48
+
+
+def _send_account_verification_email(request, user):
+    token = signing.dumps(
+        {"user_id": user.pk, "email": user.email},
+        salt="reports.account-email-confirmation",
+    )
+    confirmation_url = request.build_absolute_uri(
+        reverse("reports:verify_account_email", args=[token])
+    )
+    sent = send_mail(
+        "Confirmá tu cuenta - Pehuajó Reporta",
+        (
+            "Para activar tu cuenta de Pehuajó Reporta, abrí este enlace:\n\n"
+            f"{confirmation_url}\n\n"
+            "El enlace vence en 48 horas."
+        ),
+        settings.DEFAULT_FROM_EMAIL,
+        [user.email],
+        fail_silently=False,
+    )
+    if sent != 1:
+        raise smtplib.SMTPException("El backend de correo no aceptó el mensaje.")
+
+
+def _notify_team_of_report(request, report):
+    recipients = settings.REPORT_NOTIFICATION_EMAILS
+    if not recipients:
+        logger.warning(
+            "No se notificó al equipo el reporte %s: "
+            "DJANGO_REPORT_NOTIFICATION_EMAILS no está configurado.",
+            report.pk,
+        )
+        return
+
+    report_url = request.build_absolute_uri(
+        reverse("admin:reports_report_change", args=[report.pk])
+    )
+    address = report.location_address or (
+        f"{report.latitude}, {report.longitude}"
+    )
+    message = (
+        f"Se recibió el reporte #{report.pk} de {report.contact_name or 'una persona'}.\n\n"
+        f"Categoría: {report.get_category_display()}\n"
+        f"Ubicación: {address}\n"
+        f"Descripción: {report.description}\n\n"
+        f"Revisar el reporte en el panel: {report_url}\n"
+    )
+    try:
+        sent = send_mail(
+            f"Nuevo reporte #{report.pk} - Pehuajó Reporta",
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            list(recipients),
+            fail_silently=False,
+        )
+        if sent != 1:
+            raise smtplib.SMTPException("El backend de correo no aceptó el mensaje.")
+    except (smtplib.SMTPException, OSError):
+        logger.exception("No se pudo notificar al equipo sobre el reporte %s", report.pk)
 
 
 class RoleBasedLoginView(LoginView):
@@ -36,17 +104,166 @@ class RoleBasedLoginView(LoginView):
     def get_redirect_url(self):
         return ""
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["google_oauth_enabled"] = settings.GOOGLE_OAUTH_ENABLED
+        return context
+
     def get_success_url(self):
         if self.request.user.is_staff:
             return reverse("admin:index")
         return reverse("reports:home")
 
 
-def create_report(request):
+def register(request):
+    if request.user.is_authenticated:
+        return redirect("reports:home")
+
     if request.method == "POST":
-        form = ReportForm(request.POST, request.FILES)
+        form = RegistrationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            PendingAccountVerification.objects.create(user=user)
+            try:
+                _send_account_verification_email(request, user)
+            except (smtplib.SMTPException, OSError):
+                logger.exception("No se pudo enviar la verificación de la cuenta %s", user.pk)
+                user.delete()
+                form.add_error(
+                    None,
+                    "No pudimos enviar el email de confirmación. "
+                    "Revisá los datos o intentá de nuevo más tarde.",
+                )
+            else:
+                return render(
+                    request,
+                    "reports/email_confirmation.html",
+                    {
+                        "account_confirmation": True,
+                        "account_email": user.email,
+                        "sent": True,
+                    },
+                )
+    else:
+        form = RegistrationForm()
+
+    return render(
+        request,
+        "reports/register.html",
+        {
+            "form": form,
+            "google_oauth_enabled": settings.GOOGLE_OAUTH_ENABLED,
+        },
+    )
+
+
+def resend_account_verification(request):
+    if request.method == "POST":
+        form = ResendAccountVerificationForm(request.POST)
+        if form.is_valid():
+            verification = PendingAccountVerification.objects.select_related("user").filter(
+                user__email__iexact=form.cleaned_data["email"],
+                user__is_active=False,
+            ).first()
+            if verification:
+                try:
+                    _send_account_verification_email(request, verification.user)
+                except (smtplib.SMTPException, OSError):
+                    logger.exception(
+                        "No se pudo reenviar la verificación de la cuenta %s",
+                        verification.user.pk,
+                    )
+            return render(
+                request,
+                "reports/email_confirmation.html",
+                {"account_confirmation": True, "sent": True},
+            )
+    else:
+        form = ResendAccountVerificationForm()
+
+    return render(
+        request,
+        "reports/email_confirmation.html",
+        {"account_confirmation": True, "resend_form": form},
+    )
+
+
+def verify_account_email(request, token):
+    try:
+        data = signing.loads(
+            token,
+            salt="reports.account-email-confirmation",
+            max_age=EMAIL_CONFIRMATION_MAX_AGE,
+        )
+    except signing.SignatureExpired:
+        return render(
+            request,
+            "reports/email_confirmation.html",
+            {
+                "account_confirmation": True,
+                "error": "El enlace venció. Podés pedir uno nuevo.",
+                "resend_url": reverse("reports:resend_account_verification"),
+            },
+            status=400,
+        )
+    except signing.BadSignature:
+        return HttpResponseBadRequest("El enlace de confirmación no es válido.")
+
+    verification = PendingAccountVerification.objects.select_related("user").filter(
+        user_id=data.get("user_id"),
+        user__email=data.get("email"),
+        user__is_active=False,
+    ).first()
+    if verification is None:
+        user = get_user_model().objects.filter(
+            pk=data.get("user_id"),
+            email=data.get("email"),
+            is_active=True,
+        ).first()
+        if user:
+            return render(
+                request,
+                "reports/email_confirmation.html",
+                {"account_confirmation": True, "confirmed": True},
+            )
+        return HttpResponseBadRequest("El enlace de confirmación no es válido.")
+
+    user = verification.user
+    if request.method == "POST":
+        user.is_active = True
+        user.save(update_fields=("is_active",))
+        verification.delete()
+        return render(
+            request,
+            "reports/email_confirmation.html",
+            {"account_confirmation": True, "confirmed": True},
+        )
+
+    return render(
+        request,
+        "reports/email_confirmation.html",
+        {"account_confirmation": True},
+    )
+
+
+def create_report(request):
+    account_user = request.user if request.user.is_authenticated else None
+    if request.method == "POST":
+        form = ReportForm(request.POST, request.FILES, account_user=account_user)
         if form.is_valid():
             report = form.save(commit=False)
+            if account_user:
+                report.contact_name = (
+                    account_user.get_full_name().strip() or account_user.get_username()
+                )
+                report.contact_email = account_user.email
+                report.email_verified = bool(account_user.email)
+                report.review_status = Report.ReviewStatus.PENDING
+                report.submitted_by = account_user
+                report.save()
+                _notify_team_of_report(request, report)
+                return redirect("reports:thank_you")
+
             if report.contact_email:
                 report.email_verified = False
                 report.review_status = Report.ReviewStatus.PENDING_EMAIL
@@ -93,9 +310,10 @@ def create_report(request):
 
             report.email_verified = False
             report.save()
+            _notify_team_of_report(request, report)
             return redirect("reports:thank_you")
     else:
-        form = ReportForm()
+        form = ReportForm(account_user=account_user)
 
     return render(request, "reports/report_form.html", {"form": form})
 
@@ -106,6 +324,63 @@ def home(request):
 
 def thank_you(request):
     return render(request, "reports/thank_you.html")
+
+
+@login_required
+def my_reports(request):
+    report_list = Report.objects.filter(submitted_by=request.user)
+    filter_form = MyReportsFilterForm(request.GET or None)
+    if request.GET:
+        if filter_form.is_valid():
+            filters = filter_form.cleaned_data
+            if filters["search"]:
+                report_list = report_list.filter(
+                    Q(description__icontains=filters["search"])
+                    | Q(location_address__icontains=filters["search"])
+                )
+            if filters["category"]:
+                report_list = report_list.filter(category=filters["category"])
+            if filters["review_status"]:
+                report_list = report_list.filter(
+                    review_status=filters["review_status"]
+                )
+            if filters["status"]:
+                report_list = report_list.filter(status=filters["status"])
+        else:
+            report_list = report_list.none()
+
+    return render(
+        request,
+        "reports/my_reports.html",
+        {"reports": report_list, "filter_form": filter_form},
+    )
+
+
+@login_required
+def my_report_photo(request, report_id):
+    report = get_object_or_404(
+        Report.objects.filter(submitted_by=request.user).exclude(photo=""),
+        pk=report_id,
+    )
+    with report.photo.open("rb") as photo_file:
+        with Image.open(photo_file) as image:
+            image_format = image.format
+
+    content_types = {
+        "BMP": "image/bmp",
+        "GIF": "image/gif",
+        "JPEG": "image/jpeg",
+        "PNG": "image/png",
+        "WEBP": "image/webp",
+    }
+    content_type = content_types.get(image_format)
+    if content_type is None:
+        return HttpResponseBadRequest("El formato de la foto no está soportado.")
+
+    response = FileResponse(report.photo.open("rb"), content_type=content_type)
+    response["Content-Disposition"] = "inline"
+    response["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 def public_map(request):
@@ -170,6 +445,7 @@ def verify_report_email(request, token):
             if report.review_status == Report.ReviewStatus.PENDING_EMAIL:
                 report.review_status = Report.ReviewStatus.PENDING
             report.save(update_fields=("email_verified", "review_status", "updated_at"))
+            _notify_team_of_report(request, report)
         return render(
             request,
             "reports/email_confirmation.html",

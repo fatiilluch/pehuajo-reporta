@@ -157,6 +157,9 @@
         {% if user.is_authenticated %}
           <span class="user-name">{{ user.get_full_name|default:user.get_username }}</span>
           <div class="account-actions">
+            <a class="account-link" href="{% url 'reports:my_reports' %}" aria-label="Ver mis reportes">
+              <span class="account-icon" aria-hidden="true">▤</span><span class="account-label">Mis reportes</span>
+            </a>
             {% if user.is_staff %}
               <a class="account-link" href="{% url 'reports:management_map' %}" aria-label="Abrir mapa de gestión">
                 <span class="account-icon" aria-hidden="true">⌖</span><span class="account-label">Mapa</span>

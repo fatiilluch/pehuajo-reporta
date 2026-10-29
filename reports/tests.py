@@ -10,12 +10,14 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core import mail
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.test import override_settings
 from django.urls import reverse
+from PIL import Image
 
 from config.settings import _get_or_create_development_secret_key
-from .models import Report
+from .models import PendingAccountVerification, Report
 from .views import _intersection_streets, _segment_intersection
 
 
@@ -89,6 +91,8 @@ class PublicReportFormTests(TestCase):
         self.assertTrue(response.context["form"]["location_address"].is_hidden)
         self.assertNotContains(response, "Latitud")
         self.assertNotContains(response, "Longitud")
+        self.assertContains(response, "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+        self.assertNotContains(response, "{s}.tile.openstreetmap.org")
 
     def test_thank_you_page_uses_saved_theme_preference(self):
         response = self.client.get(reverse("reports:thank_you"))
@@ -98,6 +102,7 @@ class PublicReportFormTests(TestCase):
         self.assertContains(response, "localStorage.getItem(key)")
         self.assertContains(response, ':root[data-theme="dark"]')
 
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
     def test_valid_submission_creates_pending_report_and_redirects(self):
         response = self.client.post(self.url, self.valid_data)
 
@@ -142,7 +147,10 @@ class PublicReportFormTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Report.objects.count(), 0)
 
-    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        REPORT_NOTIFICATION_EMAILS=("equipo@example.com",),
+    )
     def test_email_report_requires_confirmation_before_team_review(self):
         response = self.client.post(
             self.url,
@@ -169,9 +177,63 @@ class PublicReportFormTests(TestCase):
         self.assertTemplateUsed(response, "reports/base.html")
         self.assertTrue(report.email_verified)
         self.assertEqual(report.review_status, Report.ReviewStatus.PENDING)
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(mail.outbox[1].to, ["equipo@example.com"])
+        self.assertIn("Ana", mail.outbox[1].body)
         self.assertContains(response, "localStorage.getItem(key)")
         self.assertContains(response, ':root[data-theme="dark"]')
         self.assertContains(response, "class=\"theme-toggle\"")
+
+        self.client.post(confirm_url)
+        self.assertEqual(len(mail.outbox), 2)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        REPORT_NOTIFICATION_EMAILS=("equipo@example.com",),
+    )
+    def test_authenticated_report_uses_verified_account_contact_without_confirmation(self):
+        user = get_user_model().objects.create_user(
+            username="vecina",
+            password="test-password",
+            email="vecina@example.com",
+            first_name="Ana",
+            last_name="Pérez",
+        )
+        self.client.force_login(user)
+
+        get_response = self.client.get(self.url)
+        response = self.client.post(
+            self.url,
+            {
+                **self.valid_data,
+                "contact_name": "Nombre manipulado",
+                "contact_email": "otra@example.com",
+            },
+        )
+
+        report = Report.objects.get()
+        self.assertTrue(get_response.context["form"]["contact_name"].field.disabled)
+        self.assertTrue(get_response.context["form"]["contact_email"].field.disabled)
+        self.assertRedirects(response, reverse("reports:thank_you"))
+        self.assertEqual(report.contact_name, "Ana Pérez")
+        self.assertEqual(report.contact_email, "vecina@example.com")
+        self.assertTrue(report.email_verified)
+        self.assertEqual(report.review_status, Report.ReviewStatus.PENDING)
+        self.assertEqual(report.submitted_by, user)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["equipo@example.com"])
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        REPORT_NOTIFICATION_EMAILS=("equipo@example.com",),
+    )
+    def test_report_without_email_notifies_team_immediately(self):
+        response = self.client.post(self.url, self.valid_data)
+
+        self.assertRedirects(response, reverse("reports:thank_you"))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["equipo@example.com"])
+        self.assertIn("Hay un bache en la esquina.", mail.outbox[0].body)
 
 
 class AccountLoginTests(TestCase):
@@ -194,6 +256,36 @@ class AccountLoginTests(TestCase):
         self.assertContains(response, reverse("reports:login"))
         self.assertContains(response, "Ingresar")
         self.assertContains(response, 'title="No iniciaste sesión"')
+
+    def test_google_login_option_is_hidden_until_oauth_is_configured(self):
+        response = self.client.get(self.login_url)
+
+        self.assertNotContains(response, "Continuar con Google")
+
+    @override_settings(
+        GOOGLE_OAUTH_ENABLED=True,
+        SOCIALACCOUNT_PROVIDERS={
+            "google": {"APP": {"client_id": "test-client", "secret": "test-secret", "key": ""}}
+        },
+    )
+    def test_google_login_option_appears_when_oauth_is_configured(self):
+        response = self.client.get(self.login_url)
+
+        self.assertContains(response, "Continuar con Google")
+        self.assertContains(
+            response,
+            '<form class="google-login-form" method="post" action="/accounts/google/login/">',
+        )
+        self.assertEqual(reverse("google_login"), "/accounts/google/login/")
+
+    def test_authenticated_home_greets_user_and_links_to_own_reports(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("reports:home"))
+
+        self.assertContains(response, "¡Hola, vecina!")
+        self.assertContains(response, reverse("reports:my_reports"))
+        self.assertContains(response, "Mis reportes")
 
     def test_regular_user_login_redirects_to_public_home(self):
         response = self.client.post(
@@ -258,6 +350,285 @@ class AccountLoginTests(TestCase):
         self.assertEqual(first_key, second_key)
 
 
+class AccountRegistrationTests(TestCase):
+    def setUp(self):
+        self.url = reverse("reports:register")
+        self.data = {
+            "username": "ana_vecina",
+            "first_name": "Ana",
+            "last_name": "Pérez",
+            "email": "ana@example.com",
+            "password1": "a-strong-test-password",
+            "password2": "a-strong-test-password",
+        }
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_registration_requires_email_confirmation_before_login(self):
+        response = self.client.post(self.url, self.data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "reports/email_confirmation.html")
+        self.assertContains(response, "ana@example.com")
+        self.assertEqual(len(mail.outbox), 1)
+        user = get_user_model().objects.get(username="ana_vecina")
+        self.assertFalse(user.is_active)
+        self.assertFalse(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertTrue(
+            PendingAccountVerification.objects.filter(user=user).exists()
+        )
+
+        login_response = self.client.post(
+            reverse("reports:login"),
+            {"username": "ana_vecina", "password": "a-strong-test-password"},
+        )
+        self.assertContains(login_response, "El usuario o la contraseña no son correctos.")
+
+        token = re.search(r"/verificar-cuenta/([^/\s]+)", mail.outbox[0].body).group(1)
+        verification_url = reverse("reports:verify_account_email", args=[token])
+        self.client.get(verification_url)
+        user.refresh_from_db()
+        self.assertFalse(user.is_active)
+
+        confirmed_response = self.client.post(verification_url)
+        user.refresh_from_db()
+        self.assertEqual(confirmed_response.status_code, 200)
+        self.assertTrue(user.is_active)
+        self.assertFalse(
+            PendingAccountVerification.objects.filter(user=user).exists()
+        )
+        self.assertContains(confirmed_response, "¡Cuenta activada!")
+
+        login_response = self.client.post(
+            reverse("reports:login"),
+            {"username": "ana_vecina", "password": "a-strong-test-password"},
+        )
+        self.assertRedirects(login_response, reverse("reports:home"))
+
+    def test_registration_rejects_an_existing_email_case_insensitively(self):
+        get_user_model().objects.create_user(
+            username="existing",
+            password="test-password",
+            email="ANA@example.com",
+        )
+
+        response = self.client.post(self.url, self.data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ya existe una cuenta con este email.")
+        self.assertEqual(get_user_model().objects.count(), 1)
+
+    def test_registration_link_is_available_from_login(self):
+        response = self.client.get(reverse("reports:login"))
+
+        self.assertContains(response, reverse("reports:register"))
+        self.assertContains(response, "Registrate")
+
+    @override_settings(
+        GOOGLE_OAUTH_ENABLED=True,
+        SOCIALACCOUNT_PROVIDERS={
+            "google": {"APP": {"client_id": "test-client", "secret": "test-secret", "key": ""}}
+        },
+    )
+    def test_google_registration_option_appears_when_oauth_is_configured(self):
+        response = self.client.get(self.url)
+
+        self.assertContains(response, "Registrarme con Google")
+        self.assertContains(
+            response,
+            '<form class="google-register-form" method="post" action="/accounts/google/login/">',
+        )
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_pending_account_can_request_another_confirmation_email(self):
+        registration_response = self.client.post(self.url, self.data)
+        user = get_user_model().objects.get(username="ana_vecina")
+        self.assertEqual(registration_response.status_code, 200)
+
+        response = self.client.post(
+            reverse("reports:resend_account_verification"),
+            {"email": self.data["email"]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Revisá tu email")
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(mail.outbox[1].to, [self.data["email"]])
+        self.assertFalse(user.is_active)
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_resend_does_not_activate_disabled_accounts(self):
+        user = get_user_model().objects.create_user(
+            username="disabled",
+            password="test-password",
+            email="disabled@example.com",
+            is_active=False,
+        )
+
+        response = self.client.post(
+            reverse("reports:resend_account_verification"),
+            {"email": user.email},
+        )
+
+        user.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(user.is_active)
+        self.assertEqual(len(mail.outbox), 0)
+
+
+class MyReportsTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            username="vecina",
+            password="test-password",
+            email="vecina@example.com",
+        )
+        self.other_user = user_model.objects.create_user(
+            username="otra",
+            password="test-password",
+            email="otra@example.com",
+        )
+        self.url = reverse("reports:my_reports")
+
+    def test_page_requires_login(self):
+        response = self.client.get(self.url)
+
+        self.assertRedirects(
+            response,
+            f"{reverse('reports:login')}?next={self.url}",
+        )
+
+    def test_page_shows_only_reports_submitted_by_current_user(self):
+        Report.objects.create(
+            contact_name="Vecina",
+            contact_email=self.user.email,
+            submitted_by=self.user,
+            category=Report.Category.POTHOLE,
+            description="Bache frente a mi casa.",
+            latitude="-35.836000",
+            longitude="-61.870000",
+            location_address="San Martín 123, Pehuajó",
+            review_status=Report.ReviewStatus.PENDING,
+        )
+        Report.objects.create(
+            contact_name="Otra",
+            contact_email=self.other_user.email,
+            submitted_by=self.other_user,
+            category=Report.Category.LIGHTING,
+            description="Este reporte pertenece a otra persona.",
+            latitude="-35.837000",
+            longitude="-61.871000",
+            review_status=Report.ReviewStatus.APPROVED,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "reports/my_reports.html")
+        self.assertEqual(len(response.context["reports"]), 1)
+        self.assertContains(response, "Bache frente a mi casa.")
+        self.assertContains(response, "Pendiente de revisión")
+        self.assertContains(response, "San Martín 123, Pehuajó")
+        self.assertContains(response, "El equipo está revisando la información")
+        self.assertContains(response, "Ver ubicación en el mapa")
+        self.assertNotContains(response, "Este reporte pertenece a otra persona.")
+
+    def test_page_offers_first_report_action_when_account_has_no_reports(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertContains(response, "Todavía no enviaste reportes")
+        self.assertContains(response, reverse("reports:create"))
+
+    def test_page_filters_only_the_current_users_reports(self):
+        matching_report = Report.objects.create(
+            contact_name="Vecina",
+            contact_email=self.user.email,
+            submitted_by=self.user,
+            category=Report.Category.LIGHTING,
+            description="El farol de la plaza está apagado.",
+            latitude="-35.836000",
+            longitude="-61.870000",
+        )
+        Report.objects.create(
+            contact_name="Vecina",
+            contact_email=self.user.email,
+            submitted_by=self.user,
+            category=Report.Category.POTHOLE,
+            description="Hay un bache.",
+            latitude="-35.836000",
+            longitude="-61.870000",
+        )
+        Report.objects.create(
+            contact_name="Otra",
+            contact_email=self.other_user.email,
+            submitted_by=self.other_user,
+            category=Report.Category.LIGHTING,
+            description="Reporte de otra cuenta.",
+            latitude="-35.836000",
+            longitude="-61.870000",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            self.url,
+            {"category": Report.Category.LIGHTING, "search": "farol"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context["reports"]), [matching_report])
+        self.assertContains(response, "El farol de la plaza está apagado.")
+        self.assertNotContains(response, "Reporte de otra cuenta.")
+
+    def test_invalid_filter_shows_error_instead_of_silently_ignoring_it(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url, {"status": "not-a-status"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["filter_form"].errors)
+        self.assertContains(response, "No se aplicaron los filtros")
+
+    def test_photo_is_only_available_to_the_report_owner(self):
+        image_bytes = BytesIO()
+        Image.new("RGB", (2, 2), color="red").save(image_bytes, format="PNG")
+        upload = SimpleUploadedFile("reporte.png", image_bytes.getvalue(), "image/png")
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            report = Report.objects.create(
+                contact_name="Vecina",
+                contact_email=self.user.email,
+                submitted_by=self.user,
+                category=Report.Category.POTHOLE,
+                description="Hay un bache.",
+                latitude="-35.836000",
+                longitude="-61.870000",
+                photo=upload,
+            )
+            photo_url = reverse("reports:my_report_photo", args=[report.pk])
+
+            self.client.force_login(self.user)
+            page_response = self.client.get(self.url)
+            self.assertContains(page_response, photo_url)
+            self.assertContains(page_response, "Coordenadas:")
+            response = self.client.get(photo_url)
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response["Content-Type"], "image/png")
+            self.assertEqual(b"".join(response.streaming_content), image_bytes.getvalue())
+
+            self.client.force_login(self.other_user)
+            self.assertEqual(self.client.get(photo_url).status_code, 404)
+
+        self.client.logout()
+        self.assertRedirects(
+            self.client.get(photo_url),
+            f"{reverse('reports:login')}?next={photo_url}",
+        )
+
+
 class PublicMapTests(TestCase):
     def setUp(self):
         self.url = reverse("reports:map")
@@ -313,6 +684,8 @@ class PublicMapTests(TestCase):
         self.assertContains(response, "tooltipopen")
         self.assertContains(response, "retryAfter")
         self.assertContains(response, "bindTooltip")
+        self.assertContains(response, "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+        self.assertNotContains(response, "{s}.tile.openstreetmap.org")
         self.assertEqual(
             response.context["reports"][0]["description"],
             "Descripción privada de prueba.",
@@ -351,6 +724,8 @@ class ManagementMapTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "reports/management_map.html")
+        self.assertContains(response, "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+        self.assertNotContains(response, "{s}.tile.openstreetmap.org")
 
         home_response = self.client.get(reverse("reports:home"))
         self.assertContains(home_response, self.url)
@@ -464,6 +839,44 @@ class AdminStatusNotificationTests(TestCase):
         self.assertEqual(mail.outbox[0].to, ["ana@example.com"])
         self.assertIn("Recibido", mail.outbox[0].body)
         self.assertIn("En curso", mail.outbox[0].body)
+
+    def test_review_status_change_emails_the_account_owner(self):
+        self.report.submitted_by = self.admin_user
+        self.report.save(update_fields=("submitted_by",))
+        response = self.client.post(
+            self.change_url,
+            {
+                **self.form_data,
+                "submitted_by": str(self.admin_user.pk),
+                "review_status": Report.ReviewStatus.APPROVED,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.report.refresh_from_db()
+        self.assertEqual(self.report.review_status, Report.ReviewStatus.APPROVED)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Pendiente de revisión", mail.outbox[0].body)
+        self.assertIn("Aprobado para publicar", mail.outbox[0].body)
+        self.assertIn(reverse("reports:my_reports"), mail.outbox[0].body)
+
+    def test_bulk_approval_emails_the_account_owner(self):
+        self.report.submitted_by = self.admin_user
+        self.report.save(update_fields=("submitted_by",))
+        response = self.client.post(
+            reverse("admin:reports_report_changelist"),
+            {
+                "action": "approve_reports",
+                "_selected_action": [str(self.report.pk)],
+                "index": "0",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.report.refresh_from_db()
+        self.assertEqual(self.report.review_status, Report.ReviewStatus.APPROVED)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Aprobado para publicar", mail.outbox[0].body)
 
     def test_editing_without_status_change_does_not_send_email(self):
         self.client.post(

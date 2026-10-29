@@ -1,0 +1,53 @@
+{% extends "reports/base.html" %}
+
+{% block title %}Completar registro con Google | Pehuajó Reporta{% endblock %}
+{% block page_heading %}Completar registro{% endblock %}
+
+{% block page_styles %}
+  <style>
+    .signup-card {
+      max-width: 34rem;
+      margin: 0 auto;
+      padding: clamp(1.25rem, 5vw, 2rem);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      background: var(--surface-soft);
+    }
+    .signup-intro { color: var(--muted); line-height: 1.55; }
+    .signup-form { display: grid; gap: 1rem; margin-top: 1.5rem; }
+    .signup-form p { margin: 0; }
+    .signup-form label { display: block; margin-bottom: 0.4rem; font-weight: 700; }
+    .signup-form input {
+      width: 100%;
+      min-height: 2.8rem;
+      padding: 0.7rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 0.6rem;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+    }
+    .signup-form button {
+      min-height: 2.9rem;
+      border: 0;
+      border-radius: 0.6rem;
+      background: var(--green);
+      color: white;
+      font: inherit;
+      font-weight: 750;
+      cursor: pointer;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <section class="signup-card">
+    <h1>Completá tu registro</h1>
+    <p class="signup-intro">Google no compartió todos los datos necesarios. Revisá la información y completá los campos para crear tu cuenta.</p>
+    <form class="signup-form" method="post">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit">Crear cuenta</button>
+    </form>
+  </section>
+{% endblock %}
